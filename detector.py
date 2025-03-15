@@ -10,13 +10,11 @@ from consts import NUM_ARRAYS, ARRAY_SHAPE
 
 
 class Detector:
-    def __init__(self, background_image, minimum_contour_size=900, shared_mem:SharedMemory = None):
-        self.background_image = background_image
-        first_gray = cv2.cvtColor(self.background_image, cv2.COLOR_BGR2GRAY)
-        self.first_gray = cv2.GaussianBlur(first_gray, (21, 21), 0)
+    def __init__(self, minimum_contour_size=900, shared_mem: SharedMemory = None):
+        self.background_image = None
         self.minimum_contour_size = minimum_contour_size
         self.processed_images = np.ndarray((NUM_ARRAYS, *ARRAY_SHAPE), dtype=np.float64, buffer=shared_mem.buf)
-
+        self.first_gray = None
         self.contours_per_image = np.ndarray((NUM_ARRAYS, 4), dtype=np.float64, buffer=shared_mem.buf)
 
     def _get_relevant_contours(self, frame):
@@ -38,5 +36,9 @@ class Detector:
         self.contours_per_image[frame_number] = relevant_contours
 
     def detect_image(self, frame, frame_number) -> None:
+        if self.background_image is None:
+            self.background_image = frame
+            first_gray = cv2.cvtColor(self.background_image, cv2.COLOR_BGR2GRAY)
+            self.first_gray = cv2.GaussianBlur(first_gray, (21, 21), 0)
         contours = self._get_relevant_contours(frame=frame)
         self._feed_relevant_contours_to_frame(contours=contours, frame=frame, frame_number=frame_number)
