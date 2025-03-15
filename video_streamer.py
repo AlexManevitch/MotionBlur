@@ -1,17 +1,19 @@
+from multiprocessing.shared_memory import SharedMemory
 from typing import Optional
 
 import cv2
+import numpy as np
 
-from detector import Detector
+from consts import NUM_ARRAYS, ARRAY_SHAPE
 
 
 class VideoStreamer:
-    def __init__(self, video_path: str, desired_size: Optional[tuple[int, int]] = (0, 0)):
+    def __init__(self, video_path: str, shared_mem: SharedMemory = None):
         self.video_path: str = video_path
-        self._continue_streaming: bool = False
-        self._desired_size: tuple[int, int] = desired_size
+        self.continue_streaming: bool = False
         self._stream: cv2.VideoCapture = None
-        self.all_frames = []
+        self.all_frames = np.ndarray((NUM_ARRAYS, *ARRAY_SHAPE), dtype=np.float64, buffer=shared_mem.buf)
+
 
     def __enter__(self):
         return self
@@ -20,26 +22,22 @@ class VideoStreamer:
         self.__del__()
 
     def start_streaming(self):
-        self._continue_streaming = True
+        self.continue_streaming = True
         self._stream = cv2.VideoCapture(self.video_path)
 
         if not self._stream.isOpened():
             print("Error: Unable to open video source.")
             exit()
-        first_frame = None
-        dt = None
-        while self._continue_streaming:
-            self._continue_streaming, current_frame = self._stream.read()
+        current_frame_count = 0
+        while self.continue_streaming:
+            self.continue_streaming, current_frame = self._stream.read()
 
-            if not self._continue_streaming:
+            if not self.continue_streaming:
                 break
 
-            if self._desired_size[0] and self._desired_size[1]:
-                current_frame = cv2.resize(current_frame, self._desired_size)
-            self.all_frames.append(current_frame)
-
+            current_frame = cv2.resize(current_frame, (ARRAY_SHAPE[1], ARRAY_SHAPE[0]))
+            self.all_frames[current_frame_count] = current_frame
+            current_frame_count = (current_frame_count + 1) % self.all_frames.shape[0]
 
     def __del__(self):
         self._stream.release()
-        cv2.destroyAllWindows()
-
